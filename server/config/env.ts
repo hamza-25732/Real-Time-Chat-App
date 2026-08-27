@@ -23,6 +23,11 @@ export interface AppConfig {
   readonly jwtSecret: string;
   /** Token lifetime in a form `jsonwebtoken` accepts, e.g. `7d` or `12h`. */
   readonly jwtExpiresIn: string;
+  /** Gemini credentials. Empty when the AI assistant is not configured. */
+  readonly geminiApiKey: string;
+  readonly geminiModel: string;
+  /** False when `GEMINI_API_KEY` is absent — AI mode reports itself as off. */
+  readonly isAiEnabled: boolean;
   readonly isProduction: boolean;
 }
 
@@ -85,6 +90,9 @@ const readAllowedOrigins = (clientOrigin: string): readonly string[] => {
 
 const nodeEnv = readNodeEnv();
 const clientOrigin = readOptional('CLIENT_ORIGIN', 'http://localhost:5173');
+// Optional on purpose: a missing key disables the assistant rather than
+// stopping the server, so global chat keeps working without one.
+const geminiApiKey = readOptional('GEMINI_API_KEY', '');
 
 export const config: AppConfig = {
   nodeEnv,
@@ -95,5 +103,8 @@ export const config: AppConfig = {
   bcryptSaltRounds: readNumber('BCRYPT_SALT_ROUNDS', 12),
   jwtSecret: readRequired('JWT_SECRET'),
   jwtExpiresIn: readOptional('JWT_EXPIRES_IN', '7d'),
+  geminiApiKey,
+  geminiModel: readOptional('GEMINI_MODEL', 'gemini-3.6-flash'),
+  isAiEnabled: geminiApiKey !== '',
   isProduction: nodeEnv === 'production',
 };

@@ -15,22 +15,33 @@ export const SOCKET_EVENTS = {
   SOCKET_ERROR: 'socket:error',
 } as const;
 
+/** The two chat modes. Mirrors `server/utils/conversation.ts`. */
+export const CONVERSATION_MODES = ['global', 'ai'] as const;
+
+export type ConversationMode = (typeof CONVERSATION_MODES)[number];
+
 /**
  * Payload this client sends with `message:send`.
  *
- * Content only: the server takes the sender's identity from the authenticated
- * handshake, so there is nothing here to spoof.
+ * The server takes the sender's identity from the authenticated handshake, so
+ * there is nothing here to spoof. `conversationId` is a mode name, not a raw
+ * id — the server resolves 'ai' against the signed-in user.
  */
 export interface ChatMessagePayload {
   content: string;
+  conversationId: ConversationMode;
 }
 
 /** What the server fans back out — the content plus server-owned metadata. */
 export interface ChatMessageBroadcast {
   id: string;
+  /** Resolved conversation, e.g. 'global' or 'ai_<userId>'. */
+  conversationId: string;
   socketId: string;
   senderName: string;
   content: string;
+  /** True for an assistant reply, which renders differently. */
+  isBot: boolean;
   sentAt: string;
 }
 

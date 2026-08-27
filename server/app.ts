@@ -1,5 +1,5 @@
 import cors from 'cors';
-import express, { type Express, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 
 import { config } from './config/env.js';
@@ -29,6 +29,13 @@ export const createApp = (): Express => {
       environment: config.nodeEnv,
       uptimeSeconds: Math.round(process.uptime()),
     });
+  });
+
+  // Nothing under /api may be served from a cache. Chat history and session
+  // data change constantly, and a stale hit renders the wrong conversation.
+  app.use('/api', (_request: Request, response: Response, next: NextFunction): void => {
+    response.set('Cache-Control', 'no-store');
+    next();
   });
 
   app.use('/api/auth', authRouter);

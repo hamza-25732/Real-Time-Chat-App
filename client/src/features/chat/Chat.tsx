@@ -1,11 +1,27 @@
-import { MoreHorizontal, Share2, X } from 'lucide-react';
+import { MoreHorizontal, Share2, Sparkles, X } from 'lucide-react';
 import { useEffect, useRef, type ReactElement } from 'react';
 
 import { useAuth } from '../../hooks/useAuth';
-import type { ChatMessageBroadcast, ConnectionStatus } from '../../types/socketEvents';
+import type {
+  ChatMessageBroadcast,
+  ConnectionStatus,
+  ConversationMode,
+} from '../../types/socketEvents';
 
 import { ChatComposer } from './ChatComposer';
 import { MessageBubble } from './MessageBubble';
+import { ModeToggle } from './ModeToggle';
+
+const EMPTY_COPY: Record<ConversationMode, string> = {
+  global:
+    'No messages yet. Open this page in a second tab to watch one arrive in both at once.',
+  ai: 'Ask the assistant anything. This conversation is private to you.',
+};
+
+const FOOTER_COPY: Record<ConversationMode, string> = {
+  global: 'Messages are stored and shared with everyone connected.',
+  ai: 'Private to your account. Replies are generated and can be wrong.',
+};
 
 const STATUS_LABEL: Record<ConnectionStatus, string> = {
   connecting: 'Connecting',
@@ -22,6 +38,9 @@ const STATUS_STYLE: Record<ConnectionStatus, string> = {
 export interface ChatProps {
   messages: ChatMessageBroadcast[];
   isLoadingHistory: boolean;
+  isAssistantThinking: boolean;
+  mode: ConversationMode;
+  onModeChange: (mode: ConversationMode) => void;
   status: ConnectionStatus;
   selfSocketId: string | null;
   error: string | null;
@@ -38,6 +57,9 @@ export interface ChatProps {
 export const Chat = ({
   messages,
   isLoadingHistory,
+  isAssistantThinking,
+  mode,
+  onModeChange,
   status,
   selfSocketId,
   error,
@@ -55,7 +77,7 @@ export const Chat = ({
     if (log !== null) {
       log.scrollTop = log.scrollHeight;
     }
-  }, [messages.length]);
+  }, [messages.length, isAssistantThinking]);
 
   const isConnected = status === 'connected';
   const hasMessages = messages.length > 0;
@@ -63,12 +85,7 @@ export const Chat = ({
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col">
       <header className="flex flex-none items-center gap-3 px-6 py-4">
-        <span className="flex items-center gap-1.5 rounded-lg border border-hairline bg-white px-2.5 py-1.5 text-[13px] shadow-card">
-          <span className="grid h-4 w-4 place-items-center rounded bg-gradient-to-br from-purple-400 to-purple-600 text-[9px] font-bold text-white">
-            C
-          </span>
-          <span className="font-medium text-slate-700">{username}</span>
-        </span>
+        <ModeToggle mode={mode} onChange={onModeChange} />
 
         <span
           className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLE[status]}`}
@@ -106,7 +123,7 @@ export const Chat = ({
             Hello, {username.trim() === '' ? 'there' : username}
           </h1>
           <p className="mt-1 text-[26px] font-semibold tracking-tight text-slate-900">
-            How can I assist you today?
+            {mode === 'ai' ? 'What can I help you with?' : 'How can I assist you today?'}
           </p>
         </div>
       )}
@@ -121,9 +138,7 @@ export const Chat = ({
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 pb-6">
           {!hasMessages ? (
             <p className="py-10 text-center text-sm text-slate-400">
-              {isLoadingHistory
-                ? 'Loading earlier messages…'
-                : 'No messages yet. Open this page in a second tab to watch one arrive in both at once.'}
+              {isLoadingHistory ? 'Loading earlier messages…' : EMPTY_COPY[mode]}
             </p>
           ) : (
             messages.map((message) => (
@@ -133,6 +148,16 @@ export const Chat = ({
                 isOwn={message.socketId === selfSocketId}
               />
             ))
+          )}
+
+          {isAssistantThinking && (
+            <p
+              className="flex items-center gap-2 px-1 text-[13px] text-purple-700"
+              role="status"
+            >
+              <Sparkles className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
+              Cortex AI is thinking…
+            </p>
           )}
         </div>
       </div>
@@ -158,9 +183,7 @@ export const Chat = ({
 
           <ChatComposer onSend={onSend} isConnected={isConnected} />
 
-          <p className="pt-3 text-center text-[11px] text-slate-400">
-            Messages are stored and shared with everyone connected.
-          </p>
+          <p className="pt-3 text-center text-[11px] text-slate-400">{FOOTER_COPY[mode]}</p>
         </div>
       </div>
     </main>

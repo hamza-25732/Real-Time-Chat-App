@@ -7,6 +7,7 @@ import {
   SOCKET_EVENTS,
   type ChatMessageBroadcast,
   type ConnectionStatus,
+  type ConversationMode,
   type SocketErrorPayload,
 } from '../../types/socketEvents';
 
@@ -30,14 +31,19 @@ export interface UseChatResult {
   messages: ChatMessageBroadcast[];
   /** True while the REST history request is still in flight. */
   isLoadingHistory: boolean;
+  /** True between sending to the assistant and its reply arriving. */
+  isAssistantThinking: boolean;
+  /** Which conversation is on screen. */
+  mode: ConversationMode;
+  setMode: (mode: ConversationMode) => void;
   status: ConnectionStatus;
   /** Socket id of this client, used to tell own messages from others'. */
   selfSocketId: string | null;
   /** Last rejection reported by the server, or `null` when nothing is wrong. */
   error: string | null;
   /**
-   * Sends as the signed-in user. Returns `true` when the message was handed to
-   * the socket.
+   * Sends to the active conversation. Returns `true` when the message was
+   * handed to the socket.
    */
   sendMessage: (content: string) => boolean;
   dismissError: () => void;
@@ -46,7 +52,7 @@ export interface UseChatResult {
 }
 
 /**
- * Subscribes to the chat stream and exposes a send function.
+ * Subscribes to the active conversation and exposes a send function.
  *
  * All socket wiring lives here rather than in the component: the effect below
  * is the single place messages arrive, and it removes every listener it added.
@@ -56,14 +62,30 @@ export const useChat = (): UseChatResult => {
   const { user, token } = useAuth();
   const [messages, setMessages] = useState<ChatMessageBroadcast[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isAssistantThinking, setIsAssistantThinking] = useState(false);
+  const [mode, setModeState] = useState<ConversationMode>('global');
   const [error, setError] = useState<string | null>(null);
 
   // Derived, not mirrored into state: `socket.id` is assigned before the
   // provider flips the status to 'connected', so status is the reliable cue.
   const selfSocketId = status === 'connected' ? (socket.id ?? null) : null;
 
-  // Load history once on mount. Live messages can land while this request is
-  // in flight, so the two lists are merged by id instead of overwritten.
+  // The conversation id the server will stamp on messages for this mode. Live
+  // broadcasts for any other conversation belong to a view we are not showing.
+  const activeConversationId =
+    user === null ? null : mode === 'global' ? 'global' : `ai_${user._id}`;
+
+  /** Switching mode empties the view; the effect below refills it. */
+  const setMode = useCallback((next: ConversationMode): void => {
+    setModeState(next);
+    setMessages([]);
+    setIsLoadingHistory(true);
+    setIsAssistantThinking(false);
+    setError(null);
+  }, []);
+
+  // Load history for the active mode. Live messages can land while this
+  // request is in flight, so the two lists are merged by id.
   useEffect((): (() => void) => {
     if (token === null) {
       return (): void => undefined;
@@ -71,7 +93,7 @@ export const useChat = (): UseChatResult => {
 
     const controller = new AbortController();
 
-    fetchRecentMessages(token, controller.signal)
+    fetchRecentMessages(token, mode, controller.signal)
       .then((history): void => {
         setMessages((live): ChatMessageBroadcast[] => mergeById(history, live));
         setIsLoadingHistory(false);
@@ -87,14 +109,29 @@ export const useChat = (): UseChatResult => {
       });
 
     return (): void => controller.abort();
-  }, [token]);
+  }, [token, mode]);
 
   useEffect((): (() => void) => {
     const handleBroadcast = (message: ChatMessageBroadcast): void => {
-      setMessages((previous): ChatMessageBroadcast[] => [...previous, message]);
+      // Global traffic reaches every socket, so a message for a conversation
+      // we are not looking at is dropped rather than appended to the wrong view.
+      if (message.conversationId !== activeConversationId) {
+        return;
+      }
+
+      if (message.isBot) {
+        setIsAssistantThinking(false);
+      }
+
+      setMessages((previous): ChatMessageBroadcast[] =>
+        previous.some((existing): boolean => existing.id === message.id)
+          ? previous
+          : [...previous, message],
+      );
     };
 
     const handleServerError = (payload: SocketErrorPayload): void => {
+      setIsAssistantThinking(false);
       setError(payload.message);
     };
 
@@ -111,16 +148,15 @@ export const useChat = (): UseChatResult => {
       socket.off(SOCKET_EVENTS.SOCKET_ERROR, handleServerError);
       socket.off('connect', handleConnect);
     };
-  }, [socket]);
+  }, [socket, activeConversationId]);
 
   const sendMessage = useCallback(
     (content: string): boolean => {
-      // Guard only: the server decides the sender, but there is no point
-      // emitting at all once the session is gone.
-      const trimmedName = user === null ? '' : user.username.trim();
       const trimmedContent = content.trim();
 
-      if (trimmedName === '') {
+      // Guard only: the server decides the sender, but there is no point
+      // emitting at all once the session is gone.
+      if (user === null) {
         setError('You are signed out. Sign in again to send messages.');
         return false;
       }
@@ -139,13 +175,19 @@ export const useChat = (): UseChatResult => {
         return false;
       }
 
-      // Only the content goes on the wire; the server stamps the sender from
-      // the authenticated handshake.
-      socket.emit(SOCKET_EVENTS.MESSAGE_SEND, { content: trimmedContent });
+      socket.emit(SOCKET_EVENTS.MESSAGE_SEND, {
+        content: trimmedContent,
+        conversationId: mode,
+      });
+
+      if (mode === 'ai') {
+        setIsAssistantThinking(true);
+      }
+
       setError(null);
       return true;
     },
-    [socket, user],
+    [socket, user, mode],
   );
 
   const dismissError = useCallback((): void => setError(null), []);
@@ -158,6 +200,9 @@ export const useChat = (): UseChatResult => {
   return {
     messages,
     isLoadingHistory,
+    isAssistantThinking,
+    mode,
+    setMode,
     status,
     selfSocketId,
     error,

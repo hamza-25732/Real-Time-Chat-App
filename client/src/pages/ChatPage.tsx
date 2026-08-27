@@ -14,6 +14,9 @@ export const ChatPage = (): ReactElement => {
   const {
     messages,
     isLoadingHistory,
+    isAssistantThinking,
+    mode,
+    setMode,
     status,
     selfSocketId,
     error,
@@ -28,6 +31,9 @@ export const ChatPage = (): ReactElement => {
       <Chat
         messages={messages}
         isLoadingHistory={isLoadingHistory}
+        isAssistantThinking={isAssistantThinking}
+        mode={mode}
+        onModeChange={setMode}
         status={status}
         selfSocketId={selfSocketId}
         error={error}

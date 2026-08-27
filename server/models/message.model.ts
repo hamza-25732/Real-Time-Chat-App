@@ -15,13 +15,18 @@ export const GLOBAL_CONVERSATION_ID = 'global';
 export interface Message {
   /** Conversation key — `GLOBAL_CONVERSATION_ID` until conversations exist. */
   conversationId: string;
-  /** Author. Every socket is authenticated, so this is always a real user. */
-  senderId: Types.ObjectId;
+  /**
+   * Author. Always set for a human message; `null` for a bot message, which
+   * has no user account behind it.
+   */
+  senderId: Types.ObjectId | null;
   /**
    * The author's username at send time, denormalised so rendering history does
    * not need a populate on every row.
    */
   senderName: string;
+  /** True for an assistant reply. The only case where `senderId` may be null. */
+  isBot: boolean;
   /** Connection the message came from, used to group a sender's own messages. */
   socketId: string;
   content: string;
@@ -51,7 +56,21 @@ const messageSchema = new Schema<Message, MessageModelDefinition>(
     senderId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'senderId is required'],
+      // Conditionally required: a human message must name its author, a bot
+      // message has none. Written as a function so the rule lives with the
+      // schema rather than in every caller.
+      required: [
+        function requiresSender(this: Message): boolean {
+          return !this.isBot;
+        },
+        'senderId is required unless the message is from a bot',
+      ],
+      default: null,
+      index: true,
+    },
+    isBot: {
+      type: Boolean,
+      default: false,
       index: true,
     },
     senderName: {

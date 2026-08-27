@@ -41,6 +41,7 @@ without asking first.
 | Real-time  | **Socket.IO** (server + `socket.io-client`) for chat, presence, typing |
 | Frontend   | **React** built and served with **Vite**                               |
 | Styling    | **Tailwind CSS** (v3, PostCSS + autoprefixer), **lucide-react** icons  |
+| AI         | **Google Gemini** (`@google/generative-ai`) for the assistant mode     |
 | Language   | **TypeScript** everywhere — client and server                          |
 
 Rules that follow from the stack:
@@ -48,6 +49,10 @@ Rules that follow from the stack:
 - **MongoDB Atlas only.** Connection strings live in `.env` (`MONGODB_URI`) and are never
   committed or hardcoded. Every collection is defined by a typed Mongoose schema; no
   ad-hoc or untyped documents.
+- **Two conversation modes, one contract.** Clients name a *mode* (`global` or
+  `ai`), never a stored conversation id; the server resolves `ai` to
+  `ai_<userId>`. Accepting a raw id from the client would let one user address
+  another user's private thread.
 - **Socket.IO owns real-time; REST owns everything else.** Message delivery, presence,
   typing indicators, and read receipts go over sockets. Auth, history pagination, user
   profiles, and conversation CRUD go over REST. Do not duplicate an operation in both.

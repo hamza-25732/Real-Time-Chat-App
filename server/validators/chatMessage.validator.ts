@@ -1,5 +1,6 @@
 import { MESSAGE_MAX_LENGTH } from '../models/message.model.js';
 import type { ChatMessagePayload } from '../sockets/socketEvents.js';
+import { parseConversationMode } from '../utils/conversation.js';
 
 /** Result of parsing untrusted input — narrow on `ok` before using `value`. */
 export type ParseResult<TValue> =
@@ -49,5 +50,13 @@ export const parseChatMessagePayload = (rawPayload: unknown): ParseResult<ChatMe
     return content;
   }
 
-  return { ok: true, value: { content: content.value } };
+  // Only a known mode is accepted. A raw conversation id from the client would
+  // let one user address another user's private assistant thread.
+  const conversationId = parseConversationMode(rawPayload.conversationId);
+
+  if (conversationId === null) {
+    return { ok: false, error: '"conversationId" must be "global" or "ai"' };
+  }
+
+  return { ok: true, value: { content: content.value, conversationId } };
 };

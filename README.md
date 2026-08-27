@@ -28,6 +28,8 @@ cp client/.env.example client/.env
 | `PORT`               | `server` | HTTP + Socket.IO port, default `5000`                       |
 | `CLIENT_ORIGIN`      | `server` | Comma-separated CORS allowlist; localhost is always allowed |
 | `BCRYPT_SALT_ROUNDS` | `server` | Password hashing cost, default `12`                         |
+| `GEMINI_API_KEY`     | `server` | Google Gemini key; blank disables the AI assistant          |
+| `GEMINI_MODEL`       | `server` | Model id, default `gemini-3.6-flash`                        |
 | `VITE_SERVER_URL`    | `client` | Backend URL the app calls and connects to                   |
 | `VITE_BASE_PATH`     | `client` | Sub-path the app is served from, default `/`                |
 
@@ -42,6 +44,22 @@ Runs both workspaces together via `concurrently`. The API and the WebSocket shar
 two tabs to watch messages arrive in both.
 
 To run just one side: `npm run dev:server` or `npm run dev:client`.
+
+## Chat modes
+
+The app has two conversations, switched with the toggle above the message log:
+
+- **Global Room** — public. Every signed-in user sees every message.
+- **AI Assistant** — private per user, stored under `ai_<userId>`. Messages go
+  to Google Gemini and the reply is saved with `isBot: true` and echoed back to
+  that user's socket only.
+
+Clients send a *mode* (`global` / `ai`), never a raw conversation id; the server
+resolves `ai` against the authenticated user, so one user cannot read another's
+assistant thread.
+
+Without `GEMINI_API_KEY` the app still runs — global chat is unaffected and AI
+mode reports that the assistant is not configured.
 
 ## Checks
 
@@ -74,6 +92,7 @@ Set these environment variables in the Render dashboard:
 - `JWT_SECRET` — generate with
   `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
 - `CLIENT_ORIGIN` — `https://<user>.github.io`
+- `GEMINI_API_KEY` — required for the AI assistant mode
 - `NODE_ENV` — `production`
 
 Atlas rejects connections from unknown IPs, so allow Render's egress addresses in

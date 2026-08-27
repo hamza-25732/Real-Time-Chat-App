@@ -1,6 +1,7 @@
 import type { Server, Socket } from 'socket.io';
 
 import type { AuthenticatedSocketUser } from '../types/auth.types.js';
+import type { ConversationMode } from '../utils/conversation.js';
 
 /**
  * The socket contract, in one place. Client and server both import these names
@@ -19,19 +20,25 @@ export const SOCKET_EVENTS = {
 /**
  * Payload a client sends with `message:send`.
  *
- * Content only: the sender's identity comes from the verified handshake, never
- * from the wire, so a client cannot post as someone else.
+ * The sender's identity comes from the verified handshake, never from the wire,
+ * so a client cannot post as someone else. `conversationId` is a mode name
+ * ('global' or 'ai'), not a raw id — the server resolves it per user.
  */
 export interface ChatMessagePayload {
   content: string;
+  conversationId: ConversationMode;
 }
 
 /** What the server fans back out — the content plus server-owned metadata. */
 export interface ChatMessageBroadcast {
   id: string;
+  /** The resolved conversation this belongs to, e.g. 'global' or 'ai_<id>'. */
+  conversationId: string;
   socketId: string;
   senderName: string;
   content: string;
+  /** True for an assistant reply, which the client styles differently. */
+  isBot: boolean;
   sentAt: string;
 }
 

@@ -1,4 +1,4 @@
-import type { ChatMessageBroadcast } from '../types/socketEvents';
+import type { ChatMessageBroadcast, ConversationMode } from '../types/socketEvents';
 
 import { SERVER_URL } from './apiConfig';
 
@@ -14,10 +14,11 @@ const parseMessage = (raw: unknown): ChatMessageBroadcast | null => {
     return null;
   }
 
-  const { id, socketId, senderName, content, sentAt } = raw;
+  const { id, conversationId, socketId, senderName, content, isBot, sentAt } = raw;
 
   if (
     typeof id !== 'string' ||
+    typeof conversationId !== 'string' ||
     typeof socketId !== 'string' ||
     typeof senderName !== 'string' ||
     typeof content !== 'string' ||
@@ -26,7 +27,7 @@ const parseMessage = (raw: unknown): ChatMessageBroadcast | null => {
     return null;
   }
 
-  return { id, socketId, senderName, content, sentAt };
+  return { id, conversationId, socketId, senderName, content, isBot: isBot === true, sentAt };
 };
 
 /**
@@ -39,9 +40,10 @@ const parseMessage = (raw: unknown): ChatMessageBroadcast | null => {
  */
 export const fetchRecentMessages = async (
   token: string,
+  mode: ConversationMode,
   signal: AbortSignal,
 ): Promise<ChatMessageBroadcast[]> => {
-  const response = await fetch(`${SERVER_URL}/api/messages`, {
+  const response = await fetch(`${SERVER_URL}/api/messages?conversationId=${mode}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
   });
